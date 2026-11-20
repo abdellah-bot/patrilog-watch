@@ -2,9 +2,6 @@
 """
 Patrilog Watch: detects ANY change on https://patrilog.com/
 Zero dependencies (Python 3.8+).  Run:  python patrilog_watch.py
-
-Optional phone alerts (Telegram):
-  set TG_TOKEN=123456:ABC...   and   TG_CHAT=123456789
 """
 import difflib, hashlib, html, json, os, re, subprocess, sys, time
 import urllib.request, urllib.parse
@@ -14,8 +11,8 @@ from pathlib import Path
 
 # ───────── CONFIG ─────────
 URL = "https://patrilog.com/"
-EXTRA_URLS = []          # add JSON/API endpoints here if you find them (see README below)
-INTERVAL = 60            # seconds between checks
+EXTRA_URLS = []
+INTERVAL = 60
 TIMEOUT = 25
 STATE = Path(__file__).with_name("patrilog_state.json")
 LOG = Path(__file__).with_name("patrilog_changes.log")
@@ -26,7 +23,6 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Sa
 
 # ───────── FETCH + NORMALIZE ─────────
 def clean_url(u):
-    """Drop cache-buster query params (?t=, ?v=, ?ver=, ?_=, ?cb=, ?timestamp=)."""
     return re.sub(r"[?&](v|ver|_|t|ts|cb|timestamp)=[^&#]*", "", u)
 
 
@@ -43,8 +39,6 @@ class TextExtractor(HTMLParser):
                 self.scripts.append(clean_url(a["src"]))
         if tag == "link" and a.get("href"):
             self.scripts.append(clean_url(a["href"]))
-        if tag == "input" and a.get("type") == "hidden":
-            return  # tokens change every load
 
     def handle_endtag(self, tag):
         if tag in ("script", "style"):
@@ -67,7 +61,7 @@ def snapshot(url):
         p = TextExtractor()
         p.feed(raw)
         lines = ["[TEXT] " + t for t in p.out] + ["[ASSET] " + s for s in sorted(set(p.scripts))]
-    else:  # JSON / plain text endpoint
+    else:
         try:
             raw = json.dumps(json.loads(raw), indent=1, sort_keys=True, ensure_ascii=False)
         except Exception:
@@ -82,7 +76,7 @@ def digest(lines):
 
 # ───────── ALERTS ─────────
 def notify(title, body):
-    print("\a", end="")  # terminal bell
+    print("\a", end="")
     try:
         if sys.platform == "darwin":
             subprocess.run(["osascript", "-e", f'display notification {json.dumps(body[:200])} with title {json.dumps(title)}'])
@@ -139,6 +133,8 @@ def main():
                 print(f"[{datetime.now():%H:%M:%S}] no change", end="\r")
             state[u] = {"hash": h, "lines": lines}
             STATE.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        if "--once" in sys.argv:
+            return
         time.sleep(INTERVAL)
 
 
