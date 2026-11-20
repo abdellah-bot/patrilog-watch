@@ -2,6 +2,8 @@
 """
 Patrilog LOTS watcher: alerts on any lot change (status, surface, new/removed).
 Uses a real headless browser because patrilog.com has bot protection.
+Setup:  pip install playwright && playwright install chromium
+Run:    python lots_watch.py      (TG_TOKEN / TG_CHAT env vars = Telegram alerts)
 """
 import json, os, sys, urllib.parse, urllib.request
 from pathlib import Path
@@ -10,8 +12,6 @@ SITE = "https://patrilog.com/"
 API = "getLots.php"
 STATE = Path(__file__).with_name("lots_state.json")
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36"
-NUM_KEYS = ("numero", "num", "lot", "numero_lot", "lot_num", "id")
-PROJ_KEYS = ("projet", "project", "nom_projet")
 
 
 def notify(title, body):
@@ -40,14 +40,12 @@ def find_items(data):
 
 
 def index(items):
-    num = next((k for k in NUM_KEYS if all(k in i for i in items)), None)
-    proj = next((k for k in PROJ_KEYS if all(k in i for i in items)), None)
+    """Unique key per lot: 'num (shortid)' so lots with the same number in different projects never collide."""
     out = {}
     for n, it in enumerate(items):
-        key = str(it[num]) if num else str(n)
-        if proj:
-            key = f"{it[proj]} #{key}"
-        out[key] = it
+        ident = str(it.get("id", n))[:8]
+        num = it.get("num", it.get("numero", it.get("lot", "?")))
+        out[f"{num} ({ident})"] = it
     return out
 
 
@@ -118,7 +116,8 @@ def main():
             notify("⚠️ Patrilog lots watcher", "No lots data for 6 checks in a row (blocked or API changed).")
         save(state)
         return
-    new, old = index(items), state.get("lots")
+    new = index(items)
+    old = state.get("lots") if state.get("v") == 2 else None
     state["_fails"] = 0
     if old is None:
         print(f"Baseline saved: {len(new)} lots. Sample: {brief(items[0])}")
@@ -129,7 +128,7 @@ def main():
             notify("🔔 Patrilog lots changed!", f"{len(msgs)} change(s)\n\n" + "\n".join(msgs[:25]))
         else:
             print(f"no change ({len(new)} lots)")
-    state["lots"] = new
+    state["lots"], state["v"] = new, 2
     save(state)
 
 
