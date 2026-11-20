@@ -22,11 +22,24 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Check Patrilog
+      - name: Check Patrilog page
         env:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT: ${{ secrets.TG_CHAT }}
         run: python "patrilog_watch (1).py" --once
+
+      - name: Install browser
+        continue-on-error: true
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Check Patrilog lots
+        continue-on-error: true
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+        run: python lots_watch.py
 
       - name: Save state
         run: |
